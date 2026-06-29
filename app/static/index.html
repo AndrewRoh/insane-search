@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Insane Search Playground</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar / Configuration Panel -->
+        <aside class="sidebar glass">
+            <div class="brand">
+                <span class="icon">🌀</span>
+                <h1>Insane Search</h1>
+                <span class="badge">Playground</span>
+            </div>
+
+            <!-- Example Scenarios Panel -->
+            <div class="examples-section">
+                <h3>Examples</h3>
+                <div class="example-list">
+                    <button type="button" class="example-btn" data-url="https://www.youtube.com/watch?v=vjSZIyYd0NI" data-selectors="" data-device="auto" data-referer="" data-impersonate="" data-force-pw="false">
+                        <span class="ex-icon">📺</span>
+                        <div class="ex-info">
+                            <span class="ex-title">YouTube Subtitles</span>
+                            <span class="ex-desc">Extract subtitles & metadata</span>
+                        </div>
+                    </button>
+                    <button type="button" class="example-btn" data-url="https://shopping.naver.com/festa/onsale" data-selectors="[class*='product'], [class*='goods'], [class*='item'], .product_card" data-device="auto" data-referer="" data-impersonate="" data-force-pw="true">
+                        <span class="ex-icon">🛒</span>
+                        <div class="ex-info">
+                            <span class="ex-title">Naver Shopping Festa</span>
+                            <span class="ex-desc">Fetch CSR product listing</span>
+                        </div>
+                    </button>
+                    <button type="button" class="example-btn" data-url="https://www.aliexpress.com" data-selectors="[class*='product'], [class*='item'], [class*='card'], .product-card" data-device="auto" data-referer="" data-impersonate="" data-force-pw="true">
+                        <span class="ex-icon">📦</span>
+                        <div class="ex-info">
+                            <span class="ex-title">AliExpress Products</span>
+                            <span class="ex-desc">Bypass strong WAF with browser</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+            
+            <form id="fetch-form" class="config-form">
+                <div class="form-group">
+                    <label for="url">Target URL</label>
+                    <input type="url" id="url" required placeholder="https://example.com/page-to-fetch" value="https://example.com">
+                </div>
+                
+                <div class="collapsible-section">
+                    <button type="button" class="collapsible-toggle" id="toggle-advanced">
+                        <span>Advanced Parameters</span>
+                        <span class="chevron">▼</span>
+                    </button>
+                    
+                    <div class="collapsible-content active" id="advanced-content">
+                        <div class="form-group">
+                            <label for="selectors">Success Selectors (CSS, comma-separated)</label>
+                            <input type="text" id="selectors" placeholder="article, .product-card, h1">
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="device">Device Class</label>
+                                <select id="device">
+                                    <option value="auto" selected>Auto</option>
+                                    <option value="desktop">Desktop</option>
+                                    <option value="mobile">Mobile</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="timeout">Timeout (seconds)</label>
+                                <input type="number" id="timeout" value="25" min="5" max="120">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="hint-referer">Referer Strategy (Hint)</label>
+                            <select id="hint-referer">
+                                <option value="">Default (Auto)</option>
+                                <option value="self_root">Self Root</option>
+                                <option value="google_search">Google Search</option>
+                                <option value="none">None</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="hint-impersonate">Impersonate First (Hint)</label>
+                            <select id="hint-impersonate">
+                                <option value="">Default (Auto)</option>
+                                <option value="safari">Safari (macOS)</option>
+                                <option value="safari_ios">Safari (iOS)</option>
+                                <option value="chrome">Chrome (Desktop)</option>
+                                <option value="chrome_android">Chrome (Android)</option>
+                                <option value="firefox">Firefox (Desktop)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group checkbox-group">
+                            <label class="checkbox-label" for="force-playwright">
+                                <input type="checkbox" id="force-playwright">
+                                <span>Force Playwright Fallback</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <button type="submit" id="submit-btn" class="btn-primary">
+                    <span>Fetch Content</span>
+                    <span class="btn-loader hidden"></span>
+                </button>
+            </form>
+        </aside>
+
+        <!-- Main Display / Results Panel -->
+        <main class="main-content">
+            <!-- Initial state or loading indicator -->
+            <div id="empty-state" class="state-panel card glass">
+                <div class="state-icon">📡</div>
+                <h2>Ready for Request</h2>
+                <p>Enter a URL on the left panel and click "Fetch Content" to begin the adaptive retrieval chain.</p>
+            </div>
+
+            <!-- Fetch result panel (hidden initially) -->
+            <div id="result-panel" class="result-layout hidden">
+                <!-- Summary Card -->
+                <div id="summary-card" class="card glass">
+                    <div class="summary-header">
+                        <div class="summary-status">
+                            <span id="status-badge" class="badge-status">SUCCESS</span>
+                            <h2 id="final-url-display">https://example.com</h2>
+                        </div>
+                        <div class="summary-meta">
+                            <div class="meta-item">
+                                <span class="meta-label">Verdict</span>
+                                <span id="meta-verdict" class="meta-val">strong_ok</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Profile</span>
+                                <span id="meta-profile" class="meta-val">-</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Attempts</span>
+                                <span id="meta-attempts" class="meta-val">1</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Time</span>
+                                <span id="meta-time" class="meta-val">0.4s</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="summary-alert" class="alert hidden"></div>
+                </div>
+
+                <!-- Tabs Container -->
+                <div class="tabs-container card glass">
+                    <div class="tabs-header">
+                        <button class="tab-btn active" data-tab="preview">Visual Preview</button>
+                        <button class="tab-btn" data-tab="trace">Attempt Trace</button>
+                        <button class="tab-btn" data-tab="html">Raw HTML</button>
+                        <button class="tab-btn" data-tab="json">JSON Metadata</button>
+                    </div>
+                    
+                    <div class="tabs-content">
+                        <!-- Preview Tab -->
+                        <div class="tab-pane active" id="tab-preview">
+                            <div class="iframe-container">
+                                <iframe id="preview-iframe" sandbox="allow-same-origin"></iframe>
+                            </div>
+                        </div>
+                        
+                        <!-- Trace Tab -->
+                        <div class="tab-pane" id="tab-trace">
+                            <div class="table-responsive">
+                                <table class="trace-table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Phase</th>
+                                            <th>Executor</th>
+                                            <th>URL Transform</th>
+                                            <th>Impersonate</th>
+                                            <th>Referer</th>
+                                            <th>Status</th>
+                                            <th>Verdict</th>
+                                            <th>Duration</th>
+                                            <th>Error / Note</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="trace-tbody">
+                                        <!-- Will be filled dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Raw HTML Tab -->
+                        <div class="tab-pane" id="tab-html">
+                            <textarea id="raw-html-viewer" readonly></textarea>
+                        </div>
+                        
+                        <!-- JSON Metadata Tab -->
+                        <div class="tab-pane" id="tab-json">
+                            <pre><code id="json-viewer"></code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

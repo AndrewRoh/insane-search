@@ -162,24 +162,128 @@ def _x(url: str, timeout: int) -> dict:
 
 # --- youtube -----------------------------------------------------------------
 def _youtube(url: str, timeout: int) -> dict:
+    import sys
+    import json
     attempts: list[dict] = []
+    
+    cmd_candidates = [
+        ["yt-dlp", "--dump-json", "--skip-download", url],
+        [sys.executable, "-m", "yt_dlp", "--dump-json", "--skip-download", url],
+        ["python", "-m", "yt_dlp", "--dump-json", "--skip-download", url],
+        ["python3", "-m", "yt_dlp", "--dump-json", "--skip-download", url],
+    ]
+    
+    meta_json = None
+    last_err = ""
+    for cmd in cmd_candidates:
+        try:
+            p = subprocess.run(
+                cmd,
+                capture_output=True, text=True, timeout=max(timeout, 60),
+                encoding="utf-8",
+            )
+            if p.returncode == 0 and p.stdout.strip().startswith("{"):
+                meta_json = p.stdout.strip()
+                break
+            else:
+                last_err = p.stderr or f"exit code {p.returncode}"
+        except FileNotFoundError:
+            last_err = "FileNotFoundError"
+            continue
+        except Exception as e:
+            last_err = str(e)
+            continue
+            
+    if not meta_json:
+        attempts.append(_attempt("youtube", "yt-dlp", False, 0, "", f"Failed to run yt-dlp: {last_err}"))
+        return {"platform": "youtube", "ok": False, "route": None, "content": "",
+                "final_url": url, "attempts": attempts}
+
     try:
-        p = subprocess.run(
-            ["yt-dlp", "--dump-json", "--skip-download", url],
-            capture_output=True, text=True, timeout=max(timeout, 60),
-        )
-        ok = p.returncode == 0 and p.stdout.strip().startswith("{")
-        note = "json" if ok else (p.stderr or "").strip()[:80]
-        attempts.append(_attempt("youtube", "yt-dlp", ok, 200 if ok else 0, p.stdout, note))
-        if ok:
-            return {"platform": "youtube", "ok": True, "route": "yt-dlp",
-                    "content": p.stdout, "final_url": url, "attempts": attempts}
-    except FileNotFoundError:
-        attempts.append(_attempt("youtube", "yt-dlp", False, 0, "", "yt-dlp not installed"))
+        meta = json.loads(meta_json)
+        title = meta.get("title", "Unknown Title")
+        channel = meta.get("uploader", "Unknown Channel")
+        desc = meta.get("description", "")
+        
+        # Subtitle fetching
+        sub_text = ""
+        auto_caps = meta.get("automatic_captions", {}) or {}
+        subs = meta.get("subtitles", {}) or {}
+        
+        # Find ko first, then en
+        chosen_lang = None
+        chosen_list = None
+        if "ko" in auto_caps:
+            chosen_lang, chosen_list = "ko", auto_caps["ko"]
+        elif "ko" in subs:
+            chosen_lang, chosen_list = "ko", subs["ko"]
+        elif "en" in auto_caps:
+            chosen_lang, chosen_list = "en", auto_caps["en"]
+        elif "en" in subs:
+            chosen_lang, chosen_list = "en", subs["en"]
+            
+        if chosen_list:
+            # find json3 url
+            sub_url = None
+            for item in chosen_list:
+                if item.get("ext") == "json3":
+                    sub_url = item.get("url")
+                    break
+            if not sub_url:
+                # fallback to first url
+                sub_url = chosen_list[0].get("url")
+                
+            if sub_url:
+                try:
+                    res = _cffi_get(sub_url, timeout=timeout)
+                    if res.status_code == 200:
+                        if "json3" in sub_url or res.text.lstrip().startswith("{"):
+                            # Parse json3
+                            sub_data = res.json()
+                            texts = []
+                            for ev in sub_data.get("events", []):
+                                if "segs" in ev:
+                                    seg_text = "".join(seg.get("utf8", "") for seg in ev["segs"])
+                                    seg_text = seg_text.strip()
+                                    if seg_text:
+                                        texts.append(seg_text)
+                            sub_text = " ".join(texts)
+                        else:
+                            # vtt or other plain parsing
+                            lines = res.text.splitlines()
+                            clean_lines = []
+                            seen = set()
+                            for line in lines:
+                                line = line.strip()
+                                if not line or line.startswith("WEBVTT") or line.startswith("Kind:") or line.startswith("Language:") or "-->" in line:
+                                    continue
+                                line = re.sub(r'<[^>]+>', '', line)
+                                if line in seen:
+                                    continue
+                                seen.add(line)
+                                clean_lines.append(line)
+                            sub_text = " ".join(clean_lines)
+                except Exception as e:
+                    sub_text = f"(Failed to fetch subtitles: {str(e)})"
+        
+        # Build clean output content
+        output_parts = [
+            f"Title: {title}",
+            f"Channel: {channel}",
+            f"Description: {desc}",
+            f"\n--- Subtitles ({chosen_lang or 'None'}) ---",
+            sub_text or "(No subtitles found)"
+        ]
+        content = "\n".join(output_parts)
+        
+        attempts.append(_attempt("youtube", "yt-dlp", True, 200, content, f"Subtitles loaded: {chosen_lang}"))
+        return {"platform": "youtube", "ok": True, "route": "yt-dlp",
+                "content": content, "final_url": url, "attempts": attempts}
+                
     except Exception as e:
-        attempts.append(_attempt("youtube", "yt-dlp", False, 0, "", f"{type(e).__name__}"))
-    return {"platform": "youtube", "ok": False, "route": None, "content": "",
-            "final_url": url, "attempts": attempts}
+        attempts.append(_attempt("youtube", "yt-dlp", False, 0, "", f"Parsing error: {str(e)}"))
+        return {"platform": "youtube", "ok": False, "route": None, "content": "",
+                "final_url": url, "attempts": attempts}
 
 
 _ROUTERS = {"reddit": _reddit, "x": _x, "youtube": _youtube}

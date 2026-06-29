@@ -91,6 +91,7 @@ def _run_node_template(template: str, args: dict, timeout: int = 90) -> tuple[in
             cwd=TEMPLATES_DIR,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=timeout,
         )
         return proc.returncode, proc.stdout, proc.stderr
