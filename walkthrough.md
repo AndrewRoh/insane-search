@@ -1,50 +1,53 @@
-# Walkthrough - Insane Search Web UI Playground
+# Walkthrough - Insane Search Web UI Playground Updates
 
-We have successfully implemented a web-based playground application for `insane-search` in the current project directory.
+We have successfully updated the Insane Search Playground web application and the underlying fetch engine to support YouTube subtitles extraction, dynamic CSR selectors, and interactive example scenarios.
 
 ## Accomplishments
 
-1.  **Backend Setup (`app/main.py`)**:
-    - Created a FastAPI application that serves the static frontend files and exposes a JSON API endpoint at `POST /api/fetch`.
-    - Integrated python path configuration to load the `engine` module dynamically from `skills/insane-search/engine`.
-    - Refactored the endpoint to a synchronous `def` function (so FastAPI automatically runs it in a background thread pool) to prevent blocking the async event loop during WAF Grid search fetches.
-2.  **Frontend Interface (`app/static/`)**:
-    - `index.html`: Designed a dashboard layout with a parameter control panel (collapsible advanced section) and a results pane with tabbed views (Visual Preview, Attempt Trace, Raw HTML, JSON).
-    - `style.css`: Implemented a dark theme using glassmorphism, smooth animations, and a responsive CSS grid layout.
-    - `app.js`: Handled dynamic API calls, loading indicators, and mapping output arrays to trace tables and preview elements.
+### 1. YouTube Subtitles Support (`engine/phase0.py`)
+- Modified `_youtube` to run `yt-dlp` from the PATH, falling back to `sys.executable -m yt_dlp` or `python -m yt_dlp` depending on environment availability.
+- Implemented timedtext JSON3 subtitle downloading and parsing. If a video contains subtitles (prioritizing Korean `ko` first, then English `en`), the engine fetches and formats the subtitles into a clean paragraph text, which is appended to the video metadata (Title, Channel, Description).
 
-## Verification & Testing
+### 2. Windows Encoding Fix (`engine/executor.py`)
+- Added `encoding="utf-8"` to the `subprocess.run` call that runs local Node templates. This resolves `UnicodeDecodeError` (e.g. `cp949`) on Korean Windows environments when parsing HTML containing multi-byte characters.
 
-1.  **FastAPI Server Start**:
-    - Successfully launched the server in the background using `uv run`.
-    - Log verified: `INFO: Uvicorn running on http://127.0.0.1:8000`
-2.  **API Retrieval Test**:
-    - Sent a test API request to `http://127.0.0.1:8000/api/fetch` to fetch `https://example.com`.
-    - The server successfully called `engine.fetch()` under the hood and returned the full trace and HTML content:
-      ```json
-      {
-        "ok": true,
-        "final_url": "https://example.com/",
-        "verdict": "weak_ok",
-        "trace": [
-          {
-            "phase": "probe",
-            "executor": "curl_cffi",
-            "url": "https://example.com",
-            "status": 200,
-            "verdict": "weak_ok"
-          }
-        ]
-      }
-      ```
+### 3. Playground UI Updates (`app/static/` & `app/main.py`)
+- **Quick Examples Panel**: Added a section in the sidebar with one-click templates for:
+  1. **YouTube Subtitles**: populates a video URL to test metadata & subtitle extraction.
+  2. **Naver Shopping Festa**: populates the Festa URL and CSS selectors to retrieve client-side rendered listings.
+  3. **AliExpress Products**: populates the site URL and CSS selectors to test WAF bypass using browser fallback.
+- **Force Playwright**: Added a checkbox in the advanced parameters. If checked, the API sends `max_attempts=0` to skip the curl grid and escalate to Playwright directly after the initial probe.
+
+---
+
+## Verification & Testing Results
+
+1. **Example 1: YouTube Subtitles**
+   - Fetched `https://www.youtube.com/watch?v=vjSZIyYd0NI`.
+   - Verified that the response is returned instantly (`ok: true`, `verdict: strong_ok`) and includes the parsed subtitles in the preview tab:
+     ```
+     Title: [데모 3] 안개낀 크롬에서 길을 안내해~ 에이전트 전용 웹페이지 리더 Insane-search...
+     Channel: 김파고
+     Description: ...
+     --- Subtitles (ko) ---
+     안녕하십니까 김파고 입니다...
+     ```
+
+2. **Example 2 & 3: Naver Shopping & AliExpress (Playwright fallback)**
+   - Ran with selectors and `force_playwright=true`.
+   - Verified that local Node `playwright_real_chrome.js` launched, loaded the pages, and extracted fully rendered product HTML.
+
+---
 
 ## How to Run
 
-To start the Web UI playground, execute the following command in PowerShell from the project root:
-
-```powershell
-$env:PYTHONPATH="skills/insane-search"; $env:PYTHONIOENCODING="utf-8"; uv run --with fastapi --with uvicorn --with pydantic --with curl_cffi --with beautifulsoup4 --with pyyaml python app/main.py
-```
-
-Then, open your web browser and navigate to:
-**`http://127.0.0.1:8000`**
+1. Make sure Node.js dependencies are installed:
+   ```bash
+   npm install playwright playwright-extra puppeteer-extra-plugin-stealth
+   npx playwright install chrome
+   ```
+2. Start the FastAPI server:
+   ```bash
+   $env:PYTHONPATH="skills/insane-search"; $env:PYTHONIOENCODING="utf-8"; uv run --with fastapi --with uvicorn --with pydantic --with curl_cffi --with beautifulsoup4 --with pyyaml --with yt-dlp python app/main.py
+   ```
+3. Open `http://localhost:8000` in your web browser.

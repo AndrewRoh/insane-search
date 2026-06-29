@@ -15,8 +15,8 @@
   - [x] Update `app/static/app.js` to handle sidebar examples click and auto-populate settings
   - [x] Bind "Force Playwright" checkbox state in API payload
 
-- [ ] **Testing & Verification**
-  - [ ] Verify Example 1 (YouTube subtitles) via local server
-  - [ ] Verify Example 2 (Naver Shopping) via local server
-  - [ ] Verify Example 3 (AliExpress) via local server
-  - [ ] Document final walkthrough
+- [x] **Testing & Verification**
+  - [x] Verify Example 1 (YouTube subtitles) via local server
+  - [x] Verify Example 2 (Naver Shopping) via local server
+  - [x] Verify Example 3 (AliExpress) via local server
+  - [x] Document final walkthrough
